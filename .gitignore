@@ -1,0 +1,7 @@
+Predictor_env/
+venv/
+__pycache__/
+*.pyc
+wine_quality_model_v2.pkl
+.lh/
+.vscode/
