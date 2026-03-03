@@ -241,3 +241,4 @@ st.markdown("""
     UCI Wine Quality Dataset &nbsp;|&nbsp; Random Forest Regressor
 </div>
 """, unsafe_allow_html=True)
+st.write("Deployment test - Version 2")
