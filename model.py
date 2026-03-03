@@ -182,6 +182,114 @@ def predict(model, inputs: dict) -> dict:
     }
 
 
+
+# =============================================================================
+# MODEL EVALUATION  -- NEW SECTION
+# =============================================================================
+
+def compute_model_metrics() -> dict:
+    """
+    Train Random Forest AND Linear Regression on 80/20 train-test split.
+    Compute R2, MAE, RMSE, and 5-fold cross-validation for both.
+
+    Why each metric matters
+    -----------------------
+    R2   : How much wine quality variation the model explains.
+           Range 0-1. R2=0.55 -> model explains 55% of quality differences.
+           Higher is better.
+
+    MAE  : Mean Absolute Error. Average error in quality points.
+           MAE=0.48 -> predictions off by 0.48 points on average (0-10 scale).
+           Lower is better.
+
+    RMSE : Root Mean Squared Error. Like MAE but penalises large errors more.
+           If RMSE much bigger than MAE -> occasional very wrong predictions.
+           Lower is better.
+
+    CV   : 5-fold Cross-Validation. Data split 5 ways, model trained & tested
+           5 separate times on different splits. Consistent CV scores prove
+           the model is reliable -- not just lucky on one test set.
+
+    We also compute Linear Regression metrics (the original basic model) so
+    the viewer can clearly see WHY we upgraded to Random Forest.
+
+    Called once by the Streamlit frontend (result is cached with st.cache_data).
+
+    Returns
+    -------
+    dict with:
+        r2, mae, rmse          -- Random Forest test-set metrics
+        cv_scores              -- numpy array: all 5 individual fold R2 scores
+        cv_mean, cv_std        -- mean and std-dev of CV scores
+        lr_r2, lr_mae, lr_rmse -- Linear Regression baseline metrics
+        n_train, n_test        -- number of samples in each split
+        n_features             -- total features used (11 original + 4 engineered)
+    Returns None if the CSV is not found.
+    """
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.linear_model import LinearRegression
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.pipeline import Pipeline
+    from sklearn.model_selection import train_test_split, cross_val_score
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+    # Find the dataset file
+    csv_file = None
+    for path in [CSV_PATH, CSV_PATH_ALT]:
+        if os.path.exists(path):
+            csv_file = path
+            break
+    if csv_file is None:
+        return None
+
+    # Prepare data (same steps as training)
+    df = pd.read_csv(csv_file, sep=";").drop_duplicates()
+    df = engineer_features(df)
+    X  = df.drop("quality", axis=1)
+    y  = df["quality"]
+
+    # 80/20 split -- same random seed so results are reproducible
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    # ---- Random Forest (our chosen model) --------------------------------
+    rf_pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("model",  RandomForestRegressor(
+            n_estimators=200, max_depth=20, random_state=42, n_jobs=-1
+        ))
+    ])
+    rf_pipe.fit(X_train, y_train)
+    y_pred    = rf_pipe.predict(X_test)
+    r2        = r2_score(y_test, y_pred)
+    mae       = mean_absolute_error(y_test, y_pred)
+    rmse      = float(np.sqrt(mean_squared_error(y_test, y_pred)))
+    cv_scores = cross_val_score(rf_pipe, X, y, cv=5, scoring="r2")
+
+    # ---- Linear Regression (baseline -- original project used this) ------
+    lr_pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("model",  LinearRegression())
+    ])
+    lr_pipe.fit(X_train, y_train)
+    lr_pred = lr_pipe.predict(X_test)
+
+    return {
+        "r2":         r2,
+        "mae":        mae,
+        "rmse":       rmse,
+        "cv_scores":  cv_scores,
+        "cv_mean":    float(cv_scores.mean()),
+        "cv_std":     float(cv_scores.std()),
+        "lr_r2":      r2_score(y_test, lr_pred),
+        "lr_mae":     mean_absolute_error(y_test, lr_pred),
+        "lr_rmse":    float(np.sqrt(mean_squared_error(y_test, lr_pred))),
+        "n_train":    len(X_train),
+        "n_test":     len(X_test),
+        "n_features": X.shape[1],
+    }
+
 # ── Smart Tips (Business Logic) ───────────────────────────────────────────────
 
 def generate_tips(inputs: dict) -> dict:

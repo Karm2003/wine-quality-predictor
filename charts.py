@@ -154,3 +154,114 @@ def make_comparison(
 
     plt.tight_layout()
     return fig
+
+
+# =============================================================================
+# EVALUATION CHARTS  -- NEW SECTION
+# =============================================================================
+
+def make_cv_chart(cv_scores, cv_mean: float) -> plt.Figure:
+    """
+    Bar chart showing R2 score for each of the 5 cross-validation folds,
+    with a dashed mean line across all bars.
+
+    How to read this chart:
+      - All bars at a similar height = model is stable and consistent (good)
+      - Large variation between bars = model results change a lot depending
+        on which data it was tested on (bad -- suggests overfitting)
+
+    Parameters
+    ----------
+    cv_scores : array-like -- R2 score for each of the 5 folds
+    cv_mean   : float      -- mean R2 across all folds
+
+    Returns matplotlib Figure
+    """
+    fig, ax = plt.subplots(figsize=(7, 3.5))
+    fig.patch.set_facecolor(BG_DARK)
+    ax.set_facecolor(BG_PANEL)
+
+    fold_labels = [f"Fold {i+1}" for i in range(len(cv_scores))]
+
+    # Green = above mean, red = below mean
+    colors = ["#2ecc71" if s >= cv_mean else "#c0392b" for s in cv_scores]
+    bars   = ax.bar(fold_labels, cv_scores, color=colors, alpha=0.85,
+                    edgecolor="none", width=0.5)
+
+    # Dashed mean reference line
+    ax.axhline(cv_mean, color=TEXT_MAIN, linestyle="--", lw=1.5,
+               label=f"Mean = {cv_mean:.3f}")
+
+    # Value label on each bar
+    for bar, val in zip(bars, cv_scores):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.005,
+            f"{val:.3f}",
+            ha="center", fontsize=9, color=TEXT_AXIS
+        )
+
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("R2 Score", color=TEXT_DIM, fontsize=9)
+    ax.set_title("5-Fold Cross-Validation Results",
+                 color=TEXT_MAIN, fontfamily="serif", fontsize=11, pad=8)
+    ax.legend(facecolor=LEG_BG, labelcolor=TEXT_AXIS, fontsize=8, framealpha=0.8)
+    ax.spines[:].set_color(SPINE)
+    ax.tick_params(colors=TEXT_DIM)
+    ax.set_xticklabels(fold_labels, color=TEXT_AXIS, fontsize=9)
+
+    plt.tight_layout()
+    return fig
+
+
+def make_model_comparison_chart(metrics: dict) -> plt.Figure:
+    """
+    Side-by-side bar chart comparing Random Forest vs Linear Regression
+    on three metrics: R2 Score, MAE, and RMSE.
+
+    This chart directly answers the question: "Why did you choose Random Forest
+    over the simpler Linear Regression model?"
+
+    Parameters
+    ----------
+    metrics : dict -- returned by compute_model_metrics() in model.py
+              Must contain: r2, mae, rmse, lr_r2, lr_mae, lr_rmse
+
+    Returns matplotlib Figure
+    """
+    fig, axes = plt.subplots(1, 3, figsize=(10, 3.5))
+    fig.patch.set_facecolor(BG_DARK)
+    fig.suptitle("Random Forest vs Linear Regression",
+                 color=TEXT_MAIN, fontfamily="serif", fontsize=11, y=1.01)
+
+    comparisons = [
+        ("R2 Score\n(higher = better)",  [metrics["lr_r2"],   metrics["r2"]]),
+        ("MAE\n(lower = better)",         [metrics["lr_mae"],  metrics["mae"]]),
+        ("RMSE\n(lower = better)",        [metrics["lr_rmse"], metrics["rmse"]]),
+    ]
+
+    model_labels = ["Linear\nRegression", "Random\nForest"]
+    bar_colors   = ["#555588", "#2ecc71"]   # grey for LR baseline, green for RF
+
+    for ax, (title, vals) in zip(axes, comparisons):
+        ax.set_facecolor(BG_PANEL)
+        bars = ax.bar(model_labels, vals, color=bar_colors, alpha=0.85,
+                      edgecolor="none", width=0.4)
+
+        for bar, val in zip(bars, vals):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + max(vals) * 0.02,
+                f"{val:.3f}",
+                ha="center", fontsize=9, color=TEXT_MAIN, fontweight="bold"
+            )
+
+        ax.set_title(title, color=TEXT_AXIS, fontsize=9, pad=6)
+        ax.set_ylim(0, max(vals) * 1.3)
+        ax.set_yticks([])
+        ax.spines[:].set_color(SPINE)
+        ax.tick_params(colors=TEXT_DIM)
+        ax.set_xticklabels(model_labels, color=TEXT_AXIS, fontsize=8)
+
+    plt.tight_layout()
+    return fig
